@@ -33,3 +33,15 @@ Run the manual query demonstration:
 
 ```bash
 python -m database.test_queries
+
+## Analytics API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/analytics/top-countries` | Top countries by booking count |
+| GET | `/api/v1/analytics/revenue` | Estimated booking-value summary |
+| GET | `/api/v1/analytics/monthly-bookings` | Monthly booking and cancellation trends |
+| GET | `/api/v1/analytics/cancellation-rate` | Overall or hotel-specific cancellation rate |
+| GET | `/api/v1/analytics/hotel-performance` | Compare hotel-level performance |
+
+> Revenue figures are estimated booking values calculated from ADR and stayed nights. They are not verified accounting revenue.

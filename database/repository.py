@@ -288,38 +288,53 @@ class HotelBookingRepository:
 
     def get_monthly_bookings(self) -> pd.DataFrame:
         """
-        Return monthly booking totals and cancellation metrics.
+        Return monthly booking and cancellation metrics.
 
         Returns:
-            Monthly analytical summary.
+        DataFrame grouped by year and month.
         """
         query = text(
             """
             SELECT
-                arrival_date_year AS year,
-                arrival_date_month AS month,
-                arrival_date_week_number AS week_number,
-                COUNT(*) AS total_bookings,
-                SUM(is_canceled) AS cancelled_bookings,
-                ROUND(
-                    AVG(CAST(is_canceled AS REAL)) * 100,
-                    2
-                ) AS cancellation_rate
+            arrival_date_year AS year,
+            arrival_date_month AS month,
+            COUNT(*) AS total_bookings,
+            SUM(is_canceled) AS cancelled_bookings,
+            ROUND(
+                AVG(CAST(is_canceled AS REAL)) * 100,
+                2
+            ) AS cancellation_rate,
+            ROUND(
+                AVG(adr),
+                2
+            ) AS average_adr
             FROM hotel_bookings
             GROUP BY
-                arrival_date_year,
-                arrival_date_month,
-                arrival_date_week_number
+            arrival_date_year,
+            arrival_date_month
             ORDER BY
-                arrival_date_year,
-                arrival_date_week_number
-            """
+            arrival_date_year,
+            CASE arrival_date_month
+                WHEN 'January' THEN 1
+                WHEN 'February' THEN 2
+                WHEN 'March' THEN 3
+                WHEN 'April' THEN 4
+                WHEN 'May' THEN 5
+                WHEN 'June' THEN 6
+                WHEN 'July' THEN 7
+                WHEN 'August' THEN 8
+                WHEN 'September' THEN 9
+                WHEN 'October' THEN 10
+                WHEN 'November' THEN 11
+                WHEN 'December' THEN 12
+            END
+        """
         )
 
         return pd.read_sql_query(
-            sql=query,
-            con=self.engine,
-        )
+        sql=query,
+        con=self.engine,
+    )
 
     def get_average_stay(
         self,
@@ -438,3 +453,112 @@ class HotelBookingRepository:
             sql=query,
             con=self.engine,
         )
+    def get_cancellation_rate(
+    self,
+    hotel: str | None = None,
+    ) -> pd.DataFrame:
+        """
+        Return total bookings, cancelled bookings, and cancellation rate.
+
+        Args:
+            hotel: Optional hotel-type filter.
+
+        Returns:
+            DataFrame containing cancellation metrics.
+        """
+        params: dict[str, Any] = {}
+
+        if hotel is None:
+            query = text(
+                """
+                SELECT
+                COUNT(*) AS total_bookings,
+                SUM(is_canceled) AS cancelled_bookings,
+                ROUND(
+                    AVG(CAST(is_canceled AS REAL)) * 100,
+                    2
+                ) AS cancellation_rate
+                FROM hotel_bookings
+                """
+            )
+        else:
+            normalized_hotel = hotel.strip()
+
+            if not normalized_hotel:
+                raise ValueError("hotel cannot be empty.")
+
+            query = text(
+                """
+                SELECT
+                COUNT(*) AS total_bookings,
+                SUM(is_canceled) AS cancelled_bookings,
+                ROUND(
+                    AVG(CAST(is_canceled AS REAL)) * 100,
+                    2
+                ) AS cancellation_rate
+                FROM hotel_bookings
+                WHERE LOWER(hotel) = LOWER(:hotel)
+                """
+            )
+
+            params["hotel"] = normalized_hotel
+
+        return pd.read_sql_query(
+        sql=query,
+        con=self.engine,
+        params=params,
+    )
+
+    def get_hotel_performance(self) -> pd.DataFrame:
+        """
+         Return performance metrics grouped by hotel type.
+
+        Returns:
+        DataFrame containing booking, cancellation, ADR, stay,
+        and estimated booking-value metrics.
+        """
+        query = text(
+           """
+            SELECT
+            hotel,
+            COUNT(*) AS total_bookings,
+            SUM(is_canceled) AS cancelled_bookings,
+            ROUND(
+                AVG(CAST(is_canceled AS REAL)) * 100,
+                2
+            ) AS cancellation_rate,
+            ROUND(
+                AVG(adr),
+                2
+            ) AS average_adr,
+            ROUND(
+                AVG(
+                    stays_in_weekend_nights
+                    + stays_in_week_nights
+                ),
+                2
+            ) AS average_stay_nights,
+            ROUND(
+                SUM(
+                    CASE
+                        WHEN is_canceled = 0
+                             AND adr >= 0
+                        THEN adr * (
+                            stays_in_weekend_nights
+                            + stays_in_week_nights
+                        )
+                        ELSE 0
+                    END
+                ),
+                2
+            ) AS estimated_booking_value
+        FROM hotel_bookings
+        GROUP BY hotel
+        ORDER BY estimated_booking_value DESC
+        """
+        )
+
+        return pd.read_sql_query(
+        sql=query,
+        con=self.engine,
+    )

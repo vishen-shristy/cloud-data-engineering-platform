@@ -232,3 +232,43 @@ def test_get_revenue_summary(
 
     assert resort_hotel["completed_bookings"] == 2
     assert resort_hotel["estimated_revenue"] == 680.0
+
+def test_get_cancellation_rate(
+    repository: HotelBookingRepository,
+) -> None:
+    result = repository.get_cancellation_rate()
+
+    assert result.iloc[0]["total_bookings"] == 4
+    assert result.iloc[0]["cancelled_bookings"] == 1
+    assert result.iloc[0]["cancellation_rate"] == 25.0
+
+
+def test_get_cancellation_rate_by_hotel(
+    repository: HotelBookingRepository,
+) -> None:
+    result = repository.get_cancellation_rate(
+        hotel="City Hotel",
+    )
+
+    assert result.iloc[0]["total_bookings"] == 2
+    assert result.iloc[0]["cancelled_bookings"] == 1
+    assert result.iloc[0]["cancellation_rate"] == 50.0
+
+
+def test_get_hotel_performance(
+    repository: HotelBookingRepository,
+) -> None:
+    result = repository.get_hotel_performance()
+
+    assert set(result["hotel"]) == {
+        "City Hotel",
+        "Resort Hotel",
+    }
+
+    city_hotel = result.loc[
+        result["hotel"] == "City Hotel"
+    ].iloc[0]
+
+    assert city_hotel["total_bookings"] == 2
+    assert city_hotel["cancelled_bookings"] == 1
+    assert city_hotel["cancellation_rate"] == 50.0

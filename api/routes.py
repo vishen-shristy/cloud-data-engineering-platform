@@ -9,7 +9,12 @@ from api.dependencies import get_booking_repository
 from api.schemas import (
     BookingListResponse,
     BookingResponse,
+    CancellationRateResponse,
+    CountryBookingSummary,
     HealthResponse,
+    HotelPerformanceSummary,
+    MonthlyBookingSummary,
+    RevenueSummary,
 )
 from database.repository import HotelBookingRepository
 
@@ -160,3 +165,131 @@ def get_booking_by_id(
     return BookingResponse.model_validate(
         safe_booking
     )
+
+@router.get(
+    "/api/v1/analytics/top-countries",
+    response_model=list[CountryBookingSummary],
+    tags=["Analytics"],
+    summary="Get top booking countries",
+)
+def get_top_countries(
+    repository: Annotated[
+        HotelBookingRepository,
+        Depends(get_booking_repository),
+    ],
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description="Number of countries to return.",
+        ),
+    ] = 10,
+) -> list[CountryBookingSummary]:
+    dataframe = repository.get_top_countries(
+        limit=limit,
+    )
+
+    records = dataframe_to_records(dataframe)
+
+    return [
+        CountryBookingSummary.model_validate(record)
+        for record in records
+    ]
+
+@router.get(
+    "/api/v1/analytics/revenue",
+    response_model=list[RevenueSummary],
+    tags=["Analytics"],
+    summary="Get estimated booking-value summary",
+    description=(
+        "Returns estimated booking value calculated as ADR multiplied "
+        "by stayed nights for non-cancelled bookings."
+    ),
+)
+def get_revenue_summary(
+    repository: Annotated[
+        HotelBookingRepository,
+        Depends(get_booking_repository),
+    ],
+) -> list[RevenueSummary]:
+    dataframe = repository.get_revenue_summary()
+
+    records = dataframe_to_records(dataframe)
+
+    return [
+        RevenueSummary.model_validate(record)
+        for record in records
+    ]
+
+@router.get(
+    "/api/v1/analytics/monthly-bookings",
+    response_model=list[MonthlyBookingSummary],
+    tags=["Analytics"],
+    summary="Get monthly booking trends",
+)
+def get_monthly_bookings(
+    repository: Annotated[
+        HotelBookingRepository,
+        Depends(get_booking_repository),
+    ],
+) -> list[MonthlyBookingSummary]:
+    dataframe = repository.get_monthly_bookings()
+
+    records = dataframe_to_records(dataframe)
+
+    return [
+        MonthlyBookingSummary.model_validate(record)
+        for record in records
+    ]
+@router.get(
+    "/api/v1/analytics/cancellation-rate",
+    response_model=CancellationRateResponse,
+    tags=["Analytics"],
+    summary="Get cancellation metrics",
+)
+def get_cancellation_rate(
+    repository: Annotated[
+        HotelBookingRepository,
+        Depends(get_booking_repository),
+    ],
+    hotel: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Optional hotel filter, such as City Hotel "
+                "or Resort Hotel."
+            ),
+        ),
+    ] = None,
+) -> CancellationRateResponse:
+    dataframe = repository.get_cancellation_rate(
+        hotel=hotel,
+    )
+
+    record = dataframe_to_records(dataframe)[0]
+
+    return CancellationRateResponse.model_validate(
+        record
+    )
+
+@router.get(
+    "/api/v1/analytics/hotel-performance",
+    response_model=list[HotelPerformanceSummary],
+    tags=["Analytics"],
+    summary="Compare hotel performance",
+)
+def get_hotel_performance(
+    repository: Annotated[
+        HotelBookingRepository,
+        Depends(get_booking_repository),
+    ],
+) -> list[HotelPerformanceSummary]:
+    dataframe = repository.get_hotel_performance()
+
+    records = dataframe_to_records(dataframe)
+
+    return [
+        HotelPerformanceSummary.model_validate(record)
+        for record in records
+    ]
